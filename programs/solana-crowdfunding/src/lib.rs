@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_lang::system_program;
 
 pub mod state;
 pub mod errors;
@@ -58,6 +59,19 @@ pub mod solana_crowdfunding {
             return err!(CrowdfundingError::InvalidContributionAmount);
         }
 
+            // code transfer lamports from contributor to vault
+        system_program::transfer(
+            CpiContext::new(
+                ctx.accounts.system_program.to_account_info(),
+                system_program::Transfer {
+                    from: ctx.accounts.contributor.to_account_info(),
+                    to: ctx.accounts.vault.to_account_info(),
+                },
+            ),
+            amount,
+        )?;
+
+
         let contribution = &mut ctx.accounts.contribution;
 
         contribution.campaign = campaign.key();
@@ -71,6 +85,46 @@ pub mod solana_crowdfunding {
         
         Ok(())
     }
+
+    pub fn withdraw(ctx : Context<Withdraw>) -> Result<()> {
+        let campaign = &mut ctx.accounts.campaign;
+
+        // Validate withdrawal conditions
+        let clock = Clock::get()?;
+        if clock.unix_timestamp < campaign.deadline {
+            return err!(CrowdfundingError::DeadlineNotReached);
+        }
+        if campaign.raised < campaign.goal {
+            return err!(CrowdfundingError::GoalNotReached);
+        }
+        if campaign.claimed {
+            return err!(CrowdfundingError::AlreadyClaimed);
+        }
+        if *ctx.accounts.creator.key != campaign.creator {
+            return err!(CrowdfundingError::Unauthorized);
+        }
+
+        system_program::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.system_program.to_account_info(),
+                system_program::Transfer {
+                    from: ctx.accounts.vault.to_account_info(),
+                    to: ctx.accounts.creator.to_account_info(),
+                },
+                &[&[b"vault", campaign.key().as_ref(), &[campaign.vault_bump]]],
+            ),
+            campaign.raised,
+        )?;
+
+        // Mark campaign as claimed
+        campaign.claimed = true;
+
+        msg!("Campaign {} funds withdrawn by creator {}", campaign.key(), ctx.accounts.creator.key());
+
+        Ok(())
+    }
+
+
 }
 
 #[derive(Accounts)]
@@ -132,4 +186,25 @@ pub struct Contribute<'info> {
     pub contribution: Account<'info, Contribution>,
     pub system_program: Program<'info, System>,
 }
-    
+
+#[derive(Accounts)]
+pub struct Withdraw<'info> {
+    #[account(mut)]
+    pub creator: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [
+            b"campaign",
+            creator.key().as_ref()
+        ],
+        bump = campaign.bump
+    )]
+    pub campaign: Account<'info, Campaign>,
+    #[account(
+        mut,
+        seeds = [b"vault", campaign.key().as_ref()],
+        bump = campaign.vault_bump
+    )]
+    pub vault: SystemAccount<'info>,
+    pub system_program: Program<'info, System>,
+}
