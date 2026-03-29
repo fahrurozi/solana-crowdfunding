@@ -124,6 +124,43 @@ pub mod solana_crowdfunding {
         Ok(())
     }
 
+    pub fn refund(ctx: Context<Refund>) -> Result<()> {
+        let campaign = &mut ctx.accounts.campaign;
+        let contribution = &mut ctx.accounts.contribution;
+
+        // Validate refund conditions
+        let clock = Clock::get()?;
+        if clock.unix_timestamp < campaign.deadline {
+            return err!(CrowdfundingError::DeadlineNotReached);
+        }
+        if campaign.raised >= campaign.goal {
+            return err!(CrowdfundingError::GoalAlreadyReached);
+        }
+        if contribution.amount == 0 {
+            return err!(CrowdfundingError::NothingToRefund);
+        }
+
+        system_program::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.system_program.to_account_info(),
+                system_program::Transfer {
+                    from: ctx.accounts.vault.to_account_info(),
+                    to: ctx.accounts.contributor.to_account_info(),
+                },
+                &[&[b"vault", campaign.key().as_ref(), &[campaign.vault_bump]]],
+            ),
+            contribution.amount,
+        )?;
+
+        // Update campaign and contribution state
+        campaign.raised = campaign.raised.checked_sub(contribution.amount).ok_or(CrowdfundingError::Overflow)?;
+        contribution.amount = 0;
+
+        msg!("{} refunded {} lamports from campaign {}", ctx.accounts.contributor.key(), contribution.amount, campaign.key());
+
+        Ok(())
+    }
+
 
 }
 
@@ -206,5 +243,38 @@ pub struct Withdraw<'info> {
         bump = campaign.vault_bump
     )]
     pub vault: SystemAccount<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct Refund<'info> {
+    #[account(mut)]
+    pub contributor: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [
+            b"campaign",
+            campaign.creator.as_ref()
+        ],
+        bump = campaign.bump
+    )]
+    pub campaign: Account<'info, Campaign>,
+    #[account(
+        mut,
+        seeds = [b"vault", campaign.key().as_ref()],
+        bump = campaign.vault_bump
+    )]
+    pub vault: SystemAccount<'info>,
+    #[account(
+        mut,
+        seeds = [
+            b"contribution",
+            campaign.key().as_ref(),
+            contributor.key().as_ref()
+
+        ],
+        bump = contribution.bump
+    )]
+    pub contribution: Account<'info, Contribution>,
     pub system_program: Program<'info, System>,
 }
