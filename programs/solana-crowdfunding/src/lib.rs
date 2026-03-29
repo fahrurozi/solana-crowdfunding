@@ -102,10 +102,6 @@ pub mod solana_crowdfunding {
         if campaign.claimed {
             return err!(CrowdfundingError::AlreadyClaimed);
         }
-        if *ctx.accounts.creator.key != campaign.creator {
-            return err!(CrowdfundingError::Unauthorized);
-        }
-
         system_program::transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.system_program.to_account_info(),
@@ -236,6 +232,7 @@ pub struct Withdraw<'info> {
     pub creator: Signer<'info>,
     #[account(
         mut,
+        has_one = creator,
         seeds = [
             b"campaign",
             creator.key().as_ref()
