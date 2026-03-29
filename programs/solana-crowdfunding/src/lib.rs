@@ -113,7 +113,7 @@ pub mod solana_crowdfunding {
                 },
                 &[&[b"vault", campaign.key().as_ref(), &[campaign.vault_bump]]],
             ),
-            campaign.raised,
+            ctx.accounts.vault.lamports(),
         )?;
 
         // Mark campaign as claimed
