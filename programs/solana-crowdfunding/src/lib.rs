@@ -178,13 +178,11 @@ pub struct CreateCampaign<'info> {
     pub campaign: Account<'info, Campaign>,
     /// CHECK: Vault PDA for storing SOL, no data is read or written
     #[account(
-    init,
-        payer = creator,
-        space = 8,
+        mut,
         seeds = [b"vault", campaign.key().as_ref()],
         bump
     )]
-    pub vault: UncheckedAccount<'info>,
+    pub vault: SystemAccount<'info>,
     
     pub system_program: Program<'info, System>,
 }
