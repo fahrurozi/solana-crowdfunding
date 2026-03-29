@@ -19,10 +19,13 @@ describe("solana-crowdfunding", () => {
   let vaultPDA: anchor.web3.PublicKey;
   let contribution1PDA: anchor.web3.PublicKey;
   let contribution2PDA: anchor.web3.PublicKey;
+  
+  const campaignId1 = new anchor.BN(1);
+  const campaignId2 = new anchor.BN(2);
 
-  const getCampaignPDA = (creatorPubkey: anchor.web3.PublicKey) => {
+  const getCampaignPDA = (creatorPubkey: anchor.web3.PublicKey, id: anchor.BN) => {
     return anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("campaign"), creatorPubkey.toBuffer()],
+      [Buffer.from("campaign"), creatorPubkey.toBuffer(), id.toArrayLike(Buffer, "le", 8)],
       program.programId
     )[0];
   };
@@ -58,7 +61,7 @@ describe("solana-crowdfunding", () => {
     await airdrop(contributor2.publicKey, 10 * anchor.web3.LAMPORTS_PER_SOL);
 
     // Initialize PDAs
-    campaignPDA = getCampaignPDA(creator.publicKey);
+    campaignPDA = getCampaignPDA(creator.publicKey, campaignId1);
     vaultPDA = getVaultPDA(campaignPDA);
     contribution1PDA = getContributionPDA(campaignPDA, contributor1.publicKey);
     contribution2PDA = getContributionPDA(campaignPDA, contributor2.publicKey);
@@ -71,7 +74,7 @@ describe("solana-crowdfunding", () => {
 
       try {
         await program.methods
-          .createCampaign(goal, pastDeadline)
+          .createCampaign(campaignId1, goal, pastDeadline)
           .accounts({
             creator: creator.publicKey,
             campaign: campaignPDA,
@@ -92,7 +95,7 @@ describe("solana-crowdfunding", () => {
 
       try {
         await program.methods
-          .createCampaign(zeroGoal, futureDeadline)
+          .createCampaign(campaignId1, zeroGoal, futureDeadline)
           .accounts({
             creator: creator.publicKey,
             campaign: campaignPDA,
@@ -113,7 +116,7 @@ describe("solana-crowdfunding", () => {
       const goal = new anchor.BN(5 * anchor.web3.LAMPORTS_PER_SOL);
 
       await program.methods
-        .createCampaign(goal, futureDeadline)
+        .createCampaign(campaignId1, goal, futureDeadline)
         .accounts({
           creator: creator.publicKey,
           campaign: campaignPDA,
@@ -311,7 +314,7 @@ describe("solana-crowdfunding", () => {
       const creator2 = anchor.web3.Keypair.generate();
       await airdrop(creator2.publicKey, 5 * anchor.web3.LAMPORTS_PER_SOL);
       
-      refundCampaignPDA = getCampaignPDA(creator2.publicKey);
+      refundCampaignPDA = getCampaignPDA(creator2.publicKey, campaignId2);
       refundVaultPDA = getVaultPDA(refundCampaignPDA);
       refundContributionPDA = getContributionPDA(refundCampaignPDA, contributor1.publicKey);
 
@@ -319,7 +322,7 @@ describe("solana-crowdfunding", () => {
       const highGoal = new anchor.BN(100 * anchor.web3.LAMPORTS_PER_SOL);
 
       await program.methods
-        .createCampaign(highGoal, futureDeadline)
+        .createCampaign(campaignId2, highGoal, futureDeadline)
         .accounts({
           creator: creator2.publicKey,
           campaign: refundCampaignPDA,

@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 
 #[account]
 pub struct Campaign {
+    pub id: u64,
     pub creator: Pubkey,
     pub goal: u64,
     pub raised: u64,

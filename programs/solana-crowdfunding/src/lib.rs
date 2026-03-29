@@ -19,6 +19,7 @@ pub mod solana_crowdfunding {
 
     pub fn create_campaign(
         ctx: Context<CreateCampaign>,
+        id: u64,
         goal: u64,
         deadline: i64,
     ) -> Result<()> {
@@ -34,6 +35,7 @@ pub mod solana_crowdfunding {
         }
 
         // Initialize campaign state
+        campaign.id = id;
         campaign.creator = *ctx.accounts.creator.key;
         campaign.goal = goal;
         campaign.raised = 0;
@@ -169,14 +171,15 @@ pub mod solana_crowdfunding {
 }
 
 #[derive(Accounts)]
+#[instruction(id: u64)]
 pub struct CreateCampaign<'info> {
     #[account(mut)]
     pub creator: Signer<'info>,
      #[account(
         init,
         payer = creator,
-        space = 8 + 32 + 8 + 8 + 8 + 1 + 1 + 1,
-        seeds = [b"campaign", creator.key().as_ref()],
+        space = 8 + 8 + 32 + 8 + 8 + 8 + 1 + 1 + 1,
+        seeds = [b"campaign", creator.key().as_ref(), id.to_le_bytes().as_ref()],
         bump
     )]
     pub campaign: Account<'info, Campaign>,
@@ -199,7 +202,8 @@ pub struct Contribute<'info> {
         mut,
         seeds = [
             b"campaign",
-            campaign.creator.as_ref()
+            campaign.creator.as_ref(),
+            campaign.id.to_le_bytes().as_ref()
         ],
         bump = campaign.bump
     )]
@@ -207,7 +211,7 @@ pub struct Contribute<'info> {
     #[account(
         mut,
         seeds = [b"vault", campaign.key().as_ref()],
-        bump
+        bump = campaign.vault_bump
     )]
     pub vault: SystemAccount<'info>,
     #[account(
@@ -234,7 +238,8 @@ pub struct Withdraw<'info> {
         has_one = creator,
         seeds = [
             b"campaign",
-            creator.key().as_ref()
+            creator.key().as_ref(),
+            campaign.id.to_le_bytes().as_ref()
         ],
         bump = campaign.bump
     )]
@@ -256,7 +261,8 @@ pub struct Refund<'info> {
         mut,
         seeds = [
             b"campaign",
-            campaign.creator.as_ref()
+            campaign.creator.as_ref(),
+            campaign.id.to_le_bytes().as_ref()
         ],
         bump = campaign.bump
     )]
