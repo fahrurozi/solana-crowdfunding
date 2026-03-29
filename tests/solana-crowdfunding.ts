@@ -365,7 +365,17 @@ describe("solana-crowdfunding", () => {
       await new Promise((resolve) => setTimeout(resolve, 3000));
     });
 
-    it("Refunds successfully to contributor", async () => {
+    it("Refunds successfully to contributor (sweeps attacker dust)", async () => {
+      // Simulate an attacker sending dust to DoS the refund
+      const tx = new anchor.web3.Transaction().add(
+        anchor.web3.SystemProgram.transfer({
+          fromPubkey: creator.publicKey,
+          toPubkey: refundVaultPDA,
+          lamports: 100, // attacker dust
+        })
+      );
+      await provider.sendAndConfirm(tx, [creator]);
+
       const initialBalance = await provider.connection.getBalance(contributor1.publicKey);
       
       await program.methods
@@ -385,6 +395,10 @@ describe("solana-crowdfunding", () => {
 
       const contributionAccount = await program.account.contribution.fetch(refundContributionPDA);
       assert.isTrue(contributionAccount.amount.eq(new anchor.BN(0)));
+
+      // Ensure the vault is successfully swept back to 0 despite the attacker dust
+      const vaultBalance = await provider.connection.getBalance(refundVaultPDA);
+      assert.equal(vaultBalance, 0, "Vault should be completely empty");
 
       const finalBalance = await provider.connection.getBalance(contributor1.publicKey);
       assert.isTrue(finalBalance > initialBalance + 0.9 * anchor.web3.LAMPORTS_PER_SOL);

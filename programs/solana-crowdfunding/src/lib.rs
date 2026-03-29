@@ -42,6 +42,8 @@ pub mod solana_crowdfunding {
         campaign.bump = ctx.bumps.campaign;
         campaign.vault_bump = ctx.bumps.vault;
 
+
+
         msg!("Campaign created with goal: {} and deadline: {}", goal, deadline);
 
         Ok(())
@@ -140,6 +142,12 @@ pub mod solana_crowdfunding {
             return err!(CrowdfundingError::NothingToRefund);
         }
 
+        let transfer_amount = if campaign.raised == contribution.amount {
+            ctx.accounts.vault.lamports()
+        } else {
+            contribution.amount
+        };
+
         system_program::transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.system_program.to_account_info(),
@@ -149,7 +157,7 @@ pub mod solana_crowdfunding {
                 },
                 &[&[b"vault", campaign.key().as_ref(), &[campaign.vault_bump]]],
             ),
-            contribution.amount,
+            transfer_amount,
         )?;
 
         // Update campaign and contribution state
